@@ -515,7 +515,7 @@ static int _reply_light( struct cell *trans, char* buf, unsigned int len,
 		} else {
 			if(unlikely(has_tran_tmcbs(trans, TMCB_RESPONSE_READY))) {
 				run_trans_callbacks_with_buf(TMCB_RESPONSE_READY, rb,
-					trans->uas.request, FAKED_REPLY, code);
+					trans->uas.request, FAKED_REPLY, TMCB_NONE_F);
 			}
 		}
 		cleanup_uac_timers( trans );
@@ -532,7 +532,7 @@ static int _reply_light( struct cell *trans, char* buf, unsigned int len,
 	if (code==100) {
 		if(unlikely(has_tran_tmcbs(trans, TMCB_REQUEST_PENDING)))
 			run_trans_callbacks_with_buf(TMCB_REQUEST_PENDING, rb,
-					trans->uas.request, FAKED_REPLY, code);
+					trans->uas.request, FAKED_REPLY, TMCB_NONE_F);
 	}
 
 	/* send it out */
@@ -1115,8 +1115,8 @@ inline static short int get_4xx_prio(unsigned char xx)
 /* returns response priority, lower number => highest prio
  *
  * responses                    priority val
- *  0-99                        32000+reponse         (special)
- *  1xx                         11000+reponse         (special)
+ *  0-99                        32000+response        (special)
+ *  1xx                         11000+response        (special)
  *  700-999                     10000+response        (very low)
  *  5xx                          5000+xx              (low)
  *  4xx                          4000+xx
@@ -1946,7 +1946,7 @@ enum rps relay_reply( struct cell *t, struct sip_msg *p_msg, int branch,
 	if (relay >= 0) {
 		if (unlikely(!totag_retr && has_tran_tmcbs(t, TMCB_RESPONSE_READY))){
 			run_trans_callbacks_with_buf(TMCB_RESPONSE_READY, uas_rb,
-					t->uas.request, relayed_msg, relayed_code);
+					t->uas.request, relayed_msg, TMCB_NONE_F);
 		}
 		/* Set retransmission timer before the reply is sent out to avoid
 		* race conditions
@@ -1978,8 +1978,10 @@ enum rps relay_reply( struct cell *t, struct sip_msg *p_msg, int branch,
 				if (unlikely(!totag_retr
 							&& has_tran_tmcbs(t, TMCB_RESPONSE_OUT))){
 					LOCK_REPLIES( t );
-					run_trans_callbacks_with_buf( TMCB_RESPONSE_OUT, uas_rb,
-							t->uas.request, relayed_msg, relayed_code);
+					if(relayed_code==uas_rb->activ_type) {
+						run_trans_callbacks_with_buf( TMCB_RESPONSE_OUT, uas_rb,
+								t->uas.request, relayed_msg, TMCB_NONE_F);
+					}
 					UNLOCK_REPLIES( t );
 				}
 				if (unlikely(has_tran_tmcbs(t, TMCB_RESPONSE_SENT))){

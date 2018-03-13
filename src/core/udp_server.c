@@ -425,6 +425,12 @@ int udp_rcv_loop()
 	unsigned int fromlen;
 	struct receive_info ri;
 	sr_event_param_t evp = {0};
+#define UDP_RCV_PRINTBUF_SIZE 512
+#define UDP_RCV_PRINT_LEN 100
+	char printbuf[UDP_RCV_PRINTBUF_SIZE];
+	int i;
+	int j;
+	int l;
 
 
 	from=(union sockaddr_union*) pkg_malloc(sizeof(union sockaddr_union));
@@ -466,6 +472,25 @@ int udp_rcv_loop()
 		/* we must 0-term the messages, receive_msg expects it */
 		buf[len]=0; /* no need to save the previous char */
 
+		if(is_printable(L_DBG) && len>10) {
+			j = 0;
+			for(i=0; i<len && i<UDP_RCV_PRINT_LEN
+						&& j+8<UDP_RCV_PRINTBUF_SIZE; i++) {
+				if(isprint(buf[i])) {
+					printbuf[j++] = buf[i];
+				} else {
+					l = snprintf(printbuf+j, 6, " %02X ", (unsigned char)buf[i]);
+					if(l<0 || l>=6) {
+						LM_ERR("print buffer building failed (%d/%d/%d)\n",
+								l, j, i);
+						continue; /* skip it */
+					}
+					j += l;
+				}
+			}
+			LM_DBG("received on udp socket: (%d/%d/%d) [[%.*s]]\n",
+					j, i, len, j, printbuf);
+		}
 		ri.src_su=*from;
 		su2ip_addr(&ri.src_ip, from);
 		ri.src_port=su_getport(from);

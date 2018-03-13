@@ -46,6 +46,8 @@ static int _evapi_notify_sockets[2];
 static int _evapi_netstring_format = 1;
 
 extern str _evapi_event_callback;
+extern int _evapi_dispatcher_pid;
+extern int _evapi_max_clients;
 
 #define EVAPI_IPADDR_SIZE	64
 #define EVAPI_TAG_SIZE	64
@@ -74,9 +76,10 @@ typedef struct _evapi_msg {
 	int unicast;
 } evapi_msg_t;
 
-#define EVAPI_MAX_CLIENTS	8
+#define EVAPI_MAX_CLIENTS	_evapi_max_clients
+
 /* last one used for error handling, not a real connected client */
-static evapi_client_t _evapi_clients[EVAPI_MAX_CLIENTS+1];
+static evapi_client_t *_evapi_clients = NULL;
 
 typedef struct _evapi_evroutes {
 	int con_new;
@@ -175,13 +178,13 @@ int evapi_run_cfg_route(evapi_env_t *evenv, int rt, str *rtname)
  */
 int evapi_close_connection(int cidx)
 {
-	if(cidx<0 || cidx>=EVAPI_MAX_CLIENTS)
+	if(cidx<0 || cidx>=EVAPI_MAX_CLIENTS || _evapi_clients==NULL)
 		return -1;
 	if(_evapi_clients[cidx].connected==1
-			&& _evapi_clients[cidx].sock > 0) {
+			&& _evapi_clients[cidx].sock >= 0) {
 		close(_evapi_clients[cidx].sock);
 		_evapi_clients[cidx].connected = 0;
-		_evapi_clients[cidx].sock = 0;
+		_evapi_clients[cidx].sock = -1;
 		return 0;
 	}
 	return -2;
@@ -211,7 +214,7 @@ int evapi_set_tag(sip_msg_t* msg, str* stag)
 {
 	evapi_env_t *evenv;
 
-	if(msg==NULL || stag==NULL)
+	if(msg==NULL || stag==NULL || _evapi_clients==NULL)
 		return -1;
 
 	evenv = evapi_get_msg_env(msg);
@@ -220,7 +223,7 @@ int evapi_set_tag(sip_msg_t* msg, str* stag)
 		return -1;
 
 	if(!(_evapi_clients[evenv->conidx].connected==1
-			&& _evapi_clients[evenv->conidx].sock > 0)) {
+			&& _evapi_clients[evenv->conidx].sock >= 0)) {
 		LM_ERR("connection not established\n");
 		return -1;
 	}
@@ -245,7 +248,8 @@ int evapi_init_notify_sockets(void)
 		LM_ERR("opening notify stream socket pair\n");
 		return -1;
 	}
-	LM_DBG("inter-process event notification sockets initialized\n");
+	LM_DBG("inter-process event notification sockets initialized: %d ~ %d\n",
+			_evapi_notify_sockets[0], _evapi_notify_sockets[1]);
 	return 0;
 }
 
@@ -256,6 +260,7 @@ void evapi_close_notify_sockets_child(void)
 {
 	LM_DBG("closing the notification socket used by children\n");
 	close(_evapi_notify_sockets[1]);
+	_evapi_notify_sockets[1] = -1;
 }
 
 /**
@@ -265,6 +270,7 @@ void evapi_close_notify_sockets_parent(void)
 {
 	LM_DBG("closing the notification socket used by parent\n");
 	close(_evapi_notify_sockets[0]);
+	_evapi_notify_sockets[0] = -1;
 }
 
 /**
@@ -276,9 +282,13 @@ int evapi_dispatch_notify(evapi_msg_t *emsg)
 	int n;
 	int wlen;
 
+	if(_evapi_clients==NULL) {
+		return 0;
+	}
+
 	n = 0;
 	for(i=0; i<EVAPI_MAX_CLIENTS; i++) {
-		if(_evapi_clients[i].connected==1 && _evapi_clients[i].sock>0) {
+		if(_evapi_clients[i].connected==1 && _evapi_clients[i].sock>=0) {
 			if(emsg->tag.s==NULL || (emsg->tag.len = _evapi_clients[i].stag.len
 						&& strncmp(_evapi_clients[i].stag.s,
 									emsg->tag.s, emsg->tag.len)==0)) {
@@ -315,7 +325,11 @@ void evapi_recv_client(struct ev_loop *loop, struct ev_io *watcher, int revents)
 	char *efp;
 
 	if(EV_ERROR & revents) {
-		perror("received invalid event\n");
+		LM_ERR("received invalid event (%d)\n", revents);
+		return;
+	}
+	if(_evapi_clients==NULL) {
+		LM_ERR("no client structures\n");
 		return;
 	}
 
@@ -352,7 +366,10 @@ void evapi_recv_client(struct ev_loop *loop, struct ev_io *watcher, int revents)
 		evapi_run_cfg_route(&evenv, _evapi_rts.con_closed,
 				&_evapi_rts.con_closed_name);
 		_evapi_clients[i].connected = 0;
-		_evapi_clients[i].sock = 0;
+		if(_evapi_clients[i].sock>=0) {
+			close(_evapi_clients[i].sock);
+		}
+		_evapi_clients[i].sock = -1;
 		_evapi_clients[i].rpos = 0;
 		ev_io_stop(loop, watcher);
 		free(watcher);
@@ -363,10 +380,10 @@ void evapi_recv_client(struct ev_loop *loop, struct ev_io *watcher, int revents)
 
 	_evapi_clients[i].rbuffer[_evapi_clients[i].rpos+rlen] = '\0';
 
-	LM_NOTICE("{%d} [%s:%d] - received [%.*s] (%d) (%d)\n",
-			i, _evapi_clients[i].src_addr, _evapi_clients[i].src_port,
-			(int)rlen, _evapi_clients[i].rbuffer+_evapi_clients[i].rpos,
-			(int)rlen, (int)_evapi_clients[i].rpos);
+	LM_DBG("{%d} [%s:%d] - received [%.*s] (%d) (%d)\n",
+		i, _evapi_clients[i].src_addr, _evapi_clients[i].src_port,
+		(int)rlen, _evapi_clients[i].rbuffer+_evapi_clients[i].rpos,
+		(int)rlen, (int)_evapi_clients[i].rpos);
 	evenv.conidx = i;
 	evenv.eset = 1;
 	if(_evapi_netstring_format) {
@@ -471,7 +488,13 @@ void evapi_accept_client(struct ev_loop *loop, struct ev_io *watcher, int revent
 	struct ev_io *evapi_client;
 	int i;
 	evapi_env_t evenv;
+	int optval;
+	socklen_t optlen;
 
+	if(_evapi_clients==NULL) {
+		LM_ERR("no client structures\n");
+		return;
+	}
 	evapi_client = (struct ev_io*) malloc (sizeof(struct ev_io));
 	if(evapi_client==NULL) {
 		LM_ERR("no more memory\n");
@@ -517,13 +540,19 @@ void evapi_accept_client(struct ev_loop *loop, struct ev_io *watcher, int revent
 					return;
 				}
 			}
+			optval = 1;
+			optlen = sizeof(optval);
+			if(setsockopt(csock, SOL_SOCKET, SO_KEEPALIVE,
+						&optval, optlen) < 0) {
+				LM_WARN("failed to enable keepalive on socket %d\n", csock);
+			}
 			_evapi_clients[i].connected = 1;
 			_evapi_clients[i].sock = csock;
 			_evapi_clients[i].af = caddr.sa_family;
 			break;
 		}
 	}
-	if(i==EVAPI_MAX_CLIENTS) {
+	if(i>=EVAPI_MAX_CLIENTS) {
 		LM_ERR("too many clients\n");
 		close(csock);
 		free(evapi_client);
@@ -590,11 +619,20 @@ int evapi_run_dispatcher(char *laddr, int lport)
 	struct ev_io io_notify;
 	int yes_true = 1;
 	int fflags = 0;
+	int i;
 
 	LM_DBG("starting dispatcher processing\n");
 
+	_evapi_clients = (evapi_client_t*)malloc(sizeof(evapi_client_t)
+			* (EVAPI_MAX_CLIENTS+1));
+	if(_evapi_clients==NULL) {
+		LM_ERR("failed to allocate client structures\n");
+		exit(-1);
+	}
 	memset(_evapi_clients, 0, sizeof(evapi_client_t) * EVAPI_MAX_CLIENTS);
-
+	for(i=0; i<EVAPI_MAX_CLIENTS; i++) {
+		_evapi_clients[i].sock = -1;
+	}
 	loop = ev_default_loop(0);
 
 	if(loop==NULL) {
@@ -730,11 +768,21 @@ int _evapi_relay(str *evdata, str *ctag, int unicast)
 		emsg->unicast = unicast;
 	}
 
-	LM_DBG("sending [%p] [%.*s] (%d)\n", emsg, emsg->data.len, emsg->data.s, emsg->data.len);
-	len = write(_evapi_notify_sockets[1], &emsg, sizeof(evapi_msg_t*));
-	if(len<=0) {
-		LM_ERR("failed to pass the pointer to evapi dispatcher\n");
-		return -1;
+	LM_DBG("sending [%p] [%.*s] (%d)\n", emsg, emsg->data.len, emsg->data.s,
+			emsg->data.len);
+	if(_evapi_notify_sockets[1]!=-1) {
+		len = write(_evapi_notify_sockets[1], &emsg, sizeof(evapi_msg_t*));
+		if(len<=0) {
+			shm_free(emsg);
+			LM_ERR("failed to pass the pointer to evapi dispatcher\n");
+			return -1;
+		}
+	} else {
+		cfg_update();
+		LM_DBG("dispatching [%p] [%.*s] (%d)\n", emsg,
+				emsg->data.len, emsg->data.s, emsg->data.len);
+		evapi_dispatch_notify(emsg);
+		shm_free(emsg);
 	}
 	return 0;
 }
@@ -852,13 +900,16 @@ int pv_get_evapi(sip_msg_t *msg, pv_param_t *param, pv_value_t *res)
 	if(param==NULL || res==NULL)
 		return -1;
 
+	if(_evapi_clients==NULL) {
+		return pv_get_null(msg, param, res);
+	}
 	evenv = evapi_get_msg_env(msg);
 
 	if(evenv==NULL || evenv->conidx<0 || evenv->conidx>=EVAPI_MAX_CLIENTS)
 		return pv_get_null(msg, param, res);
 
 	if(_evapi_clients[evenv->conidx].connected==0
-			&& _evapi_clients[evenv->conidx].sock <= 0)
+			&& _evapi_clients[evenv->conidx].sock < 0)
 		return pv_get_null(msg, param, res);
 
 	switch(param->pvn.u.isname.name.n)

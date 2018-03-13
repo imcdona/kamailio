@@ -337,7 +337,7 @@ DST_BLST_TCP_IMASK	dst_blacklist_tcp_imask
 DST_BLST_TLS_IMASK	dst_blacklist_tls_imask
 DST_BLST_SCTP_IMASK	dst_blacklist_sctp_imask
 
-IP_FREE_BIND		ip_free_bind|ip_freebind|ipfreebind
+IP_FREE_BIND		ip_free_bind|ipfreebind|ip_nonlocal_bind
 
 PORT	port
 STAT	statistics
@@ -395,6 +395,7 @@ TCP_OPT_KEEPINTVL	"tcp_keepintvl"
 TCP_OPT_KEEPCNT		"tcp_keepcnt"
 TCP_OPT_CRLF_PING	"tcp_crlf_ping"
 TCP_OPT_ACCEPT_NO_CL	"tcp_accept_no_cl"
+TCP_OPT_ACCEPT_HEP3	"tcp_accept_hep3"
 TCP_CLONE_RCVBUF	"tcp_clone_rcvbuf"
 TCP_REUSE_PORT		"tcp_reuse_port"
 DISABLE_TLS		"disable_tls"|"tls_disable"
@@ -436,11 +437,18 @@ KILL_TIMEOUT	"exit_timeout"|"ser_kill_timeout"
 MAX_WLOOPS		"max_while_loops"
 PVBUFSIZE		"pv_buffer_size"
 PVBUFSLOTS		"pv_buffer_slots"
+PVCACHELIMIT	"pv_cache_limit"
+PVCACHEACTION	"pv_cache_action"
 HTTP_REPLY_PARSE	"http_reply_hack"|"http_reply_parse"
 VERSION_TABLE_CFG	"version_table"
 VERBOSE_STARTUP		"verbose_startup"
 
 SERVER_ID     "server_id"
+ROUTE_LOCKS_SIZE     "route_locks_size"
+
+KEMI     "kemi"
+ONSEND_ROUTE_CALLBACK	"onsend_route_callback"
+REPLY_ROUTE_CALLBACK	"reply_route_callback"
 
 MAX_RECURSIVE_LEVEL		"max_recursive_level"
 MAX_BRANCHES_PARAM		"max_branches"|"max_branches"
@@ -839,6 +847,8 @@ IMPORTFILE      "import_file"
 									return TCP_OPT_CRLF_PING; }
 <INITIAL>{TCP_OPT_ACCEPT_NO_CL}	{ count(); yylval.strval=yytext;
 									return TCP_OPT_ACCEPT_NO_CL; }
+<INITIAL>{TCP_OPT_ACCEPT_HEP3}	{ count(); yylval.strval=yytext;
+									return TCP_OPT_ACCEPT_HEP3; }
 <INITIAL>{TCP_CLONE_RCVBUF}		{ count(); yylval.strval=yytext;
 									return TCP_CLONE_RCVBUF; }
 <INITIAL>{TCP_REUSE_PORT}	{ count(); yylval.strval=yytext; return TCP_REUSE_PORT; }
@@ -914,12 +924,20 @@ IMPORTFILE      "import_file"
 									return PVBUFSIZE; }
 <INITIAL>{PVBUFSLOTS}			{	count(); yylval.strval=yytext;
 									return PVBUFSLOTS; }
+<INITIAL>{PVCACHELIMIT}			{	count(); yylval.strval=yytext;
+									return PVCACHELIMIT; }
+<INITIAL>{PVCACHEACTION}		{	count(); yylval.strval=yytext;
+									return PVCACHEACTION; }
 <INITIAL>{HTTP_REPLY_PARSE}		{	count(); yylval.strval=yytext;
 									return HTTP_REPLY_PARSE; }
 <INITIAL>{VERSION_TABLE_CFG}  { count(); yylval.strval=yytext; return VERSION_TABLE_CFG;}
 <INITIAL>{VERBOSE_STARTUP}		{	count(); yylval.strval=yytext;
 									return VERBOSE_STARTUP; }
+<INITIAL>{ROUTE_LOCKS_SIZE}  { count(); yylval.strval=yytext; return ROUTE_LOCKS_SIZE; }
 <INITIAL>{SERVER_ID}  { count(); yylval.strval=yytext; return SERVER_ID;}
+<INITIAL>{KEMI}  { count(); yylval.strval=yytext; return KEMI;}
+<INITIAL>{REPLY_ROUTE_CALLBACK}  { count(); yylval.strval=yytext; return REPLY_ROUTE_CALLBACK;}
+<INITIAL>{ONSEND_ROUTE_CALLBACK}  { count(); yylval.strval=yytext; return ONSEND_ROUTE_CALLBACK;}
 <INITIAL>{MAX_RECURSIVE_LEVEL}  { count(); yylval.strval=yytext; return MAX_RECURSIVE_LEVEL;}
 <INITIAL>{MAX_BRANCHES_PARAM}  { count(); yylval.strval=yytext; return MAX_BRANCHES_PARAM;}
 <INITIAL>{LATENCY_LOG}  { count(); yylval.strval=yytext; return LATENCY_LOG;}

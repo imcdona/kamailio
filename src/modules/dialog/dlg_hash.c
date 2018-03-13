@@ -50,6 +50,7 @@ extern int dlg_enable_dmq;
 
 extern int dlg_early_timeout;
 extern int dlg_noack_timeout;
+extern int dlg_end_timeout;
 
 /*! global dialog table */
 struct dlg_table *d_table = 0;
@@ -232,7 +233,7 @@ int dlg_clean_run(ticks_t ti)
 		while (dlg) {
 			tdlg = dlg;
 			dlg = dlg->next;
-			if(tdlg->state==DLG_STATE_UNCONFIRMED
+			if(tdlg->state==DLG_STATE_UNCONFIRMED && tdlg->init_ts>0
 					&& tdlg->init_ts<tm-dlg_early_timeout) {
 				/* dialog in early state older than 5min */
 				LM_NOTICE("dialog in early state is too old (%p ref %d)\n",
@@ -240,7 +241,7 @@ int dlg_clean_run(ticks_t ti)
 				unlink_unsafe_dlg(&d_table->entries[i], tdlg);
 				destroy_dlg(tdlg);
 			}
-			if(tdlg->state==DLG_STATE_CONFIRMED_NA
+			if(tdlg->state==DLG_STATE_CONFIRMED_NA && tdlg->start_ts>0
 					&& tdlg->start_ts<tm-dlg_noack_timeout) {
 				if(update_dlg_timer(&tdlg->tl, 10)<0) {
 					LM_ERR("failed to update dialog lifetime in long non-ack state\n");
@@ -248,7 +249,8 @@ int dlg_clean_run(ticks_t ti)
 				tdlg->lifetime = 10;
 				tdlg->dflags |= DLG_FLAG_CHANGED;
 			}
-			if(tdlg->state==DLG_STATE_DELETED && tdlg->end_ts<tm-300) {
+			if(tdlg->state==DLG_STATE_DELETED && tdlg->end_ts>0
+					&& tdlg->end_ts<tm-dlg_end_timeout) {
 				/* dialog in deleted state older than 5min */
 				LM_NOTICE("dialog in delete state is too old (%p ref %d)\n",
 						tdlg, tdlg->ref);
@@ -954,18 +956,19 @@ void dlg_release(dlg_cell_t *dlg)
 
 
 /*!
- * \brief Small logging helper functions for next_state_dlg.
+ * \brief Small logging helper macro for next_state_dlg.
  * \param event logged event
  * \param dlg dialog data
  * \see next_state_dlg
  */
-static inline void log_next_state_dlg(const int event, const struct dlg_cell *dlg) {
-	LM_CRIT("bogus event %d in state %d for dlg %p [%u:%u] with clid '%.*s' and tags "
-		"'%.*s' '%.*s'\n", event, dlg->state, dlg, dlg->h_entry, dlg->h_id,
-		dlg->callid.len, dlg->callid.s,
-		dlg->tag[DLG_CALLER_LEG].len, dlg->tag[DLG_CALLER_LEG].s,
-		dlg->tag[DLG_CALLEE_LEG].len, dlg->tag[DLG_CALLEE_LEG].s);
-}
+#define log_next_state_dlg(event, dlg) do { \
+		LM_CRIT("bogus event %d in state %d for dlg %p [%u:%u]" \
+			" with clid '%.*s' and tags" \
+			" '%.*s' '%.*s'\n", event, (dlg)->state, (dlg), \
+			(dlg)->h_entry, (dlg)->h_id, (dlg)->callid.len, (dlg)->callid.s, \
+			(dlg)->tag[DLG_CALLER_LEG].len, (dlg)->tag[DLG_CALLER_LEG].s, \
+			(dlg)->tag[DLG_CALLEE_LEG].len, (dlg)->tag[DLG_CALLEE_LEG].s); \
+	} while(0)
 
 
 /*!

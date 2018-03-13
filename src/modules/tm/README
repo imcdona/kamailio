@@ -141,6 +141,7 @@ Daniel-Constantin Mierla
               5.6. tm.reply
               5.7. tm.reply_callid
               5.8. tm.clean
+              5.9. tm.stats
 
         6. Event Routes
 
@@ -381,6 +382,7 @@ Chapter 1. Admin Guide
         5.6. tm.reply
         5.7. tm.reply_callid
         5.8. tm.clean
+        5.9. tm.stats
 
    6. Event Routes
 
@@ -457,8 +459,7 @@ Chapter 1. Admin Guide
 Note
 
    Several Kamailio TM module functions are now implemented in the TMX
-   module: “modules_k/tmx”. Check it to see if what you are looking for is
-   there.
+   module. Check it to see if what you are looking for is there.
 
 2. Serial Forking Based on Q Value
 
@@ -1062,7 +1063,7 @@ modparam("tm", "blst_503_max_timeout", 604800)
 
    Change the value carefully, because requests that doesn't get a
    provisional response (everything but INVITE) can easily cause the next
-   hop to be inserted into the blacklist by mistake. For exmaple the next
+   hop to be inserted into the blacklist by mistake. For example the next
    hop is a proxy, it is alive, but waiting for the response of the UAS,
    and has higher fr_timer value.
 
@@ -1348,7 +1349,7 @@ modparam("tm", "callid_matching", 1)
 
 3.34. pass_provisional_replies (integer)
 
-   If set, TMCB_LOCAL_REPONSE_OUT tm registered callbacks will be called
+   If set, TMCB_LOCAL_RESPONSE_OUT tm registered callbacks will be called
    also for provisional replies.
 
    Default value is 0 (off).
@@ -1684,7 +1685,7 @@ end
    and port. In the later case (host and port specified) the protocol used
    is the same protocol on which the message was received.
 
-   t_relay() is the statefull version for forward() while t_relay(host,
+   t_relay() is the stateful version for forward() while t_relay(host,
    port) is similar to forward(host, port).
 
    In the forward to uri case (t_relay()), if the original URI was
@@ -1720,7 +1721,7 @@ if (!t_relay())
      * port - Port number.
 
    If no parameters are specified the message is sent to a destination
-   derived from the message uri (using sip sepcific DNS lookups), but with
+   derived from the message uri (using sip specific DNS lookups), but with
    the protocol corresponding to the function name.
 
    Example 1.49. t_relay_to_udp usage
@@ -1777,8 +1778,8 @@ failure_route[1] {
 }
 ...
 
-   See test/onr.cfg for a more complex example of combination of serial
-   with parallel forking.
+   See misc/examples/mixed/onr.cfg for a more complex example of
+   combination of serial with parallel forking.
 
 4.7.  t_on_branch_failure(branch_failure_route)
 
@@ -1881,7 +1882,7 @@ if (t_newtran()) {
 } else sl_reply_error();
 ...
 
-   See test/uas.cfg for more examples.
+   See misc/examples/mixed/uas.cfg for more examples.
 
 4.11.  t_reply(code, reason_phrase)
 
@@ -2406,7 +2407,7 @@ failure_route[1] {
    and then stores the branches in reverse order into the XAVP.
 
    The q parameter of a branch contains a value from range 0-1.0 and it
-   expresses relative preferrence of the branch among all branches in the
+   expresses relative preference of the branch among all branches in the
    destination set. The higher the q value the more preference the user
    agent gave to the branch. Branches with higher q values will be tried
    before branches with lower ones when serial forking takes place.
@@ -2513,7 +2514,7 @@ event_route[tm:branch-failure:outbound]
 
 4.41.  t_check_status(re)
 
-   Returns true if the regular expresion “re” match the reply code of the
+   Returns true if the regular expression “re” match the reply code of the
    response message as follows:
      * in routing block - the code of the last sent reply.
      * in on_reply block - the code of the current received reply.
@@ -2554,7 +2555,7 @@ Note
        elapses, when the INVITE transaction no longer exists and thus
        would not match anything. There are also cases when tm would not
        keep all the information needed for e2e ACK matching (since this is
-       not needed for a statefull proxy and it requires additional memory,
+       not needed for a stateful proxy and it requires additional memory,
        tm will not keep this information unless needed by some other
        module or callbacks).
      * For other requests (non ACKs and non CANCELs), in case of a
@@ -2583,7 +2584,7 @@ if ( method == "CANCEL" && !t_check_trans())
 
 4.43.  t_set_disable_6xx(0|1)
 
-   Turn off/on 6xx replies special rfc conformant handling on a per
+   Turn off/on 6xx replies special rfc conforming handling on a per
    transaction basis. If turned off (t_set_disable_6xx("1")) 6XXs will be
    treated like normal replies.
 
@@ -2678,8 +2679,8 @@ t_replicate_to_udp("1.2.3.4", "5060");
 
    Meaning of the parameters is as follows:
      * proxy - address where the request should be sent. Format is:
-       "proto:host:port" - any of proto or port can be ommitted, along
-       with the semicolon after or before.
+       "proto:host:port" - any of proto or port can be omitted, along with
+       the semicolon after or before.
      * flags - bitmask integer value to control the internal behavior.
        Bits can be:
           + 0x01 - do not generate 100 reply.
@@ -2809,6 +2810,7 @@ t_uac_send("OPTIONS", "sip:alice@kamailio.org", "", "",
    5.6. tm.reply
    5.7. tm.reply_callid
    5.8. tm.clean
+   5.9. tm.stats
 
 5.1.  tm.list
 
@@ -2834,7 +2836,7 @@ t_uac_send("OPTIONS", "sip:alice@kamailio.org", "", "",
 
 5.3.  tm.t_uac_wait
 
-   Similar to rm.t_uac_start, but waits for the SIP reponse and tries to
+   Similar to tm.t_uac_start, but waits for the SIP response and tries to
    provide its details via RPC response.
 
 5.4.  tm.cancel
@@ -2884,6 +2886,13 @@ t_uac_send("OPTIONS", "sip:alice@kamailio.org", "", "",
 5.8.  tm.clean
 
    Trigger an hard clean of expired transactions.
+
+   Parameters:
+     * none
+
+5.9.  tm.stats
+
+   Gets information about current and past TM transaction handling.
 
    Parameters:
      * none
@@ -3071,8 +3080,8 @@ action *route)
    For programmatic use only. This function is for revoking t_suspend()
    from the same process as it was executed before. t_cancel_suspend() can
    be used when something fails after t_suspend() has already been
-   executed and it turns out that the transcation should not have been
-   suspended. The function cancels the FR timer of the transacation.
+   executed and it turns out that the transaction should not have been
+   suspended. The function cancels the FR timer of the transaction.
 
    The message lumps are saved by t_suspend() which cannot be restored.
 

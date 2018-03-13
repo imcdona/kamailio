@@ -189,6 +189,11 @@ int populate_leg_info( struct dlg_cell *dlg, struct sip_msg *msg,
 	str contact;
 	str rr_set;
 
+	if(parse_headers(msg,HDR_EOH_F,0)<0){
+		LM_ERR("failed to parse headers\n");
+		goto error0;
+	}
+
 	dlg->bind_addr[leg] = msg->rcv.bind_address;
 
 	/* extract the cseq number as string */
@@ -210,19 +215,14 @@ int populate_leg_info( struct dlg_cell *dlg, struct sip_msg *msg,
 		goto error0;
 	}
 	if ( parse_contact(msg->contact)<0 ||
-	((contact_body_t *)msg->contact->parsed)->contacts==NULL ||
-	((contact_body_t *)msg->contact->parsed)->contacts->next!=NULL ) {
+			((contact_body_t *)msg->contact->parsed)->contacts==NULL ||
+			((contact_body_t *)msg->contact->parsed)->contacts->next!=NULL ) {
 		LM_ERR("bad Contact HDR\n");
 		goto error0;
 	}
 	contact = ((contact_body_t *)msg->contact->parsed)->contacts->uri;
 
-	/* extract the RR parts */
-	if(!msg->record_route && (parse_headers(msg,HDR_EOH_F,0)<0)  ){
-		LM_ERR("failed to parse record route header\n");
-		goto error0;
-	}
-
+	/* extract the record-route addresses */
 	if (leg==DLG_CALLER_LEG) {
 		skip_recs = 0;
 	} else {
@@ -456,6 +456,10 @@ static void dlg_onreply(struct cell* t, int type, struct tmcb_params *param)
 		event = DLG_EVENT_RPL3xx;
 
 	next_state_dlg( dlg, event, &old_state, &new_state, &unref);
+	if(new_state==DLG_STATE_DELETED && old_state!=DLG_STATE_DELETED) {
+		/* set end time */
+		dlg->end_ts = (unsigned int)(time(0));
+	}
 	if(dlg_run_event_route(dlg, (rpl==FAKED_REPLY)?NULL:rpl, old_state,
 			new_state)<0) {
 		/* dialog is gone */
@@ -528,11 +532,6 @@ static void dlg_onreply(struct cell* t, int type, struct tmcb_params *param)
 		if (unref) dlg_unref(dlg, unref);
 		if_update_stat(dlg_enable_stats, active_dlgs, 1);
 		goto done;
-	}
-
-	if(new_state==DLG_STATE_DELETED && old_state!=DLG_STATE_DELETED) {
-		/* set end time */
-		dlg->end_ts = (unsigned int)(time(0));
 	}
 
 	if ( new_state==DLG_STATE_DELETED

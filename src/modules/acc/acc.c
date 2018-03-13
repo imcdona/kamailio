@@ -35,6 +35,7 @@
 #include "../../core/error.h"
 #include "../../core/mem/mem.h"
 #include "../../core/usr_avp.h"
+#include "../../core/async_task.h"
 #include "../../lib/srdb1/db.h"
 #include "../../core/parser/hf.h"
 #include "../../core/parser/msg_parser.h"
@@ -465,7 +466,8 @@ int acc_db_request( struct sip_msg *rq)
 				LM_ERR("failed to insert delayed into database\n");
 				goto error;
 			}
-		} else if(acc_db_insert_mode==2 && acc_dbf.insert_async!=NULL) {
+		} else if(acc_db_insert_mode==2 && acc_dbf.insert_async!=NULL
+				&& async_task_workers_active()) {
 			if (acc_dbf.insert_async(db_handle, db_keys, db_vals, m) < 0) {
 				LM_ERR("failed to insert async into database\n");
 				goto error;
@@ -508,6 +510,52 @@ error:
 	/* free memory allocated by extra2strar */
 	free_strar_mem( &(type_arr[m-o]), &(val_arr[m-o]), o, m);
 	return -1;
+}
+
+/**
+ * @brief test if acc flag from enternal engines is set
+ */
+int is_eng_acc_on(sip_msg_t *msg)
+{
+	acc_engine_t *e;
+
+	e = acc_api_get_engines();
+
+	if(e==NULL) {
+		return 0;
+	}
+	while(e) {
+		if(e->flags & 1) {
+			if(msg->flags & e->acc_flag) {
+				return 1;
+			}
+		}
+		e = e->next;
+	}
+	return 0;
+}
+
+/**
+ * @brief test if acc flag from enternal engines is set
+ */
+int is_eng_mc_on(sip_msg_t *msg)
+{
+	acc_engine_t *e;
+
+	e = acc_api_get_engines();
+
+	if(e==NULL) {
+		return 0;
+	}
+	while(e) {
+		if(e->flags & 1) {
+			if(msg->flags & e->missed_flag) {
+				return 1;
+			}
+		}
+		e = e->next;
+	}
+	return 0;
 }
 
 /**

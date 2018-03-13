@@ -109,6 +109,7 @@ static int _dlg_track_cseq_updates = 0;
 int dlg_ka_failed_limit = 1;
 int dlg_early_timeout = 300;
 int dlg_noack_timeout = 60;
+int dlg_end_timeout = 300;
 
 int dlg_enable_dmq = 0;
 
@@ -309,6 +310,7 @@ static param_export_t mod_params[]={
 	{ "event_callback",        PARAM_STR, &dlg_event_callback       },
 	{ "early_timeout",         PARAM_INT, &dlg_early_timeout        },
 	{ "noack_timeout",         PARAM_INT, &dlg_noack_timeout        },
+	{ "end_timeout",           PARAM_INT, &dlg_end_timeout          },
 	{ 0,0,0 }
 };
 
@@ -1824,7 +1826,7 @@ static sr_kemi_t sr_kemi_dialog_exports[] = {
 	},
 	{ str_init("dialog"), str_init("set_dlg_profile_static"),
 		SR_KEMIP_INT, ki_set_dlg_profile_static,
-		{ SR_KEMIP_STR, SR_KEMIP_STR, SR_KEMIP_NONE,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},
 	{ str_init("dialog"), str_init("set_dlg_profile"),
@@ -1834,7 +1836,7 @@ static sr_kemi_t sr_kemi_dialog_exports[] = {
 	},
 	{ str_init("dialog"), str_init("unset_dlg_profile_static"),
 		SR_KEMIP_INT, ki_unset_dlg_profile_static,
-		{ SR_KEMIP_STR, SR_KEMIP_STR, SR_KEMIP_NONE,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},
 	{ str_init("dialog"), str_init("unset_dlg_profile"),
@@ -1844,7 +1846,7 @@ static sr_kemi_t sr_kemi_dialog_exports[] = {
 	},
 	{ str_init("dialog"), str_init("is_in_profile_static"),
 		SR_KEMIP_INT, ki_is_in_profile_static,
-		{ SR_KEMIP_STR, SR_KEMIP_STR, SR_KEMIP_NONE,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},
 	{ str_init("dialog"), str_init("is_in_profile"),
